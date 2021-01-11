@@ -49,7 +49,6 @@ int main(int argc, char *argv[]){ // no input params
         word[i] = UNKNOWN_CHAR;
     }
     printf("[Client %d]: Word received from server is \"%s\" (%d Attemps allowed)! \n", getpid(), word, info.attempts_allowed);
-    
 
     // 3. Connect to shared memory segment
     Segment *segment = shmat(info.shm_id, NULL, 0); // attach to shared memory segment created
@@ -71,7 +70,7 @@ int main(int argc, char *argv[]){ // no input params
     signal(SIGTERM, handler_term);
     
     while (1){
-        pause(); // wait for any signal (for my turn) 
+        pause(); // wait for any signal (for my turn)
         if (stop_requested) break; // terminate
 
         if (!message) continue; // message needs to be allocated by server
@@ -96,6 +95,7 @@ int main(int argc, char *argv[]){ // no input params
                         letter_found_at[i] = message->results.letter_found_at[i];
                     }
             }
+            
             printf("\n[Client %d]: Client %ld results: \"%s\" (%d letters found, %d attempts remaining)", getpid(), message->turn_id, word, message->results.total_letters_found, message->results.attempts_remaining);
             int kill_status = kill(info.server_id, SIGUSR2);
             if (kill_status == -1) perror_exit("Error sending signal to server!");

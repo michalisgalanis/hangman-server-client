@@ -8,6 +8,12 @@ void handler_informed(int sig){ // SIGUSR2 is used to inform server about inform
     printf("\n[Server %d]: Received Informed Signal from Client %ld.", getpid(), message->turn_id);
 }
 
+bool stop_requested = false;
+void handler_term(int sig){ // SIGTERM is used to terminate clients
+    stop_requested = true;
+    printf("\n[Server %d]: Received Termination Signal from Client %ld.", getpid(), message->turn_id);
+}
+
 int main(int argc, char *argv[]){ //input params: input_file
     // 0. Checking parameters
     if (argc != 3) perror_exit("usage: input players!");
@@ -64,9 +70,9 @@ int main(int argc, char *argv[]){ //input params: input_file
     int real_length = i;
     for (; i < MAX_CHARS; i++) rand_word_buffered[i] = 0;
     //for (i = 0; i < MAX_CHARS; i++) printf("%d ", rand_word_buffered[i]);
-    char word[real_length + 1];
+    char word[real_length];
     for (i = 0; i < real_length; i++) word[i] = rand_word_buffered[i];
-    word[real_length] = 0;
+    word[real_length - 1] = 0;
 
     printf("[Server %d]: Random Word Selected: \"%s\"!\n", getpid(), word);
     
@@ -86,7 +92,7 @@ int main(int argc, char *argv[]){ //input params: input_file
 
 
     // 4. Inform clients about selected word information through message
-    WordInfo info = {MSG_SERVER, getpid(), real_length, word[0], word[real_length - 1], ATTEMPTS_ALLOWED, shm_id};
+    WordInfo info = {MSG_SERVER, getpid(), real_length, word[0], word[real_length - 2], ATTEMPTS_ALLOWED, shm_id};
     for (int i = 0; i < players; i++){
         int snd_status = msgsnd(msg_id, &info, sizeof(info), 0); //send message
         if (snd_status == -1) perror_exit("Error sending message!");
@@ -124,6 +130,8 @@ int main(int argc, char *argv[]){ //input params: input_file
     
     // 7. Check submits and perform checks repeatedly until game is either won or lost
     while (1){
+        if (stop_requested) break; // terminate
+
         if (message->status == STATUS_SUBMITTED && message->submit.letter != 0){ //check submit and perform checks
             printf("\n[Server %d]: Client %ld submitted letter \'%c\'.", getpid(), message->turn_id, message->submit.letter);
 
