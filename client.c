@@ -41,11 +41,11 @@ int main(int argc, char *argv[]){ // no input params
     int rcv_status = msgrcv(msg_id, &info, sizeof(info), MSG_SERVER, 0);
     if (rcv_status == -1) perror_exit("Error receiveing message!");
     
-    char word[info.chars + 1];
+    char word[info.chars];
     word[0] = info.first_char;
-    word[info.chars - 1] = info.last_char;
-    word[info.chars] = 0;
-    for (int i = 1; i < info.chars - 1; i++){
+    word[info.chars - 2] = info.last_char;
+    word[info.chars - 1] = 0;
+    for (int i = 1; i < info.chars - 2; i++){
         word[i] = UNKNOWN_CHAR;
     }
     printf("[Client %d]: Word received from server is \"%s\" (%d Attemps allowed)! \n", getpid(), word, info.attempts_allowed);
@@ -61,9 +61,11 @@ int main(int argc, char *argv[]){ // no input params
 
     // 4. Setup, submit a letter and check results repeatedly until game is either won or lost
     printf("\n[Client %d]: GAME START! =========================", getpid());
-    bool letter_found_at[MAX_CHARS];
+    bool letter_found_at[info.chars - 1];
+    for (int i = 0; i < info.chars - 1; i++)
+        letter_found_at[i] = false;
     letter_found_at[0] = true;
-    letter_found_at[info.chars - 1] = true;
+    letter_found_at[info.chars - 2] = true;
     
     signal(SIGUSR1, handler_turn);
     signal(SIGUSR2, handler_results);
@@ -78,9 +80,15 @@ int main(int argc, char *argv[]){ // no input params
         if (message->status == STATUS_READY && message->turn_id == getpid()){
             // it's my turn. ask for new letter and submit
             printf("\n\n[Client %d]: MY TURN! =========================", getpid());
-            printf("\n[Client %d]: \"%s\" (%d letters found, %d attempts remaining)", getpid(), word, message->results.total_letters_found, message->results.attempts_remaining);
-            printf("\n[Client %d]: Enter new letter: ", getpid());
-            message->submit.letter = getc(stdin);
+            printf("\n[Client %d]: \"%s\" (%d letters found (%d to go), %d attempts remaining)", getpid(), word, message->results.total_letters_found, info.chars - 2 - message->results.total_letters_found, message->results.attempts_remaining);
+            
+            char c;
+            do {
+                printf("\n[Client %d]: Enter new letter: ", getpid());
+                c = getc(stdin);
+            } while (c == 10);
+            message->submit.letter = c;
+            printf("\n[Client %d]: Submitted letter: %c (%d)", getpid(), message->submit.letter, message->submit.letter);
             message->status = STATUS_SUBMITTED;
 
             int kill_status = kill(info.server_id, SIGUSR1);
@@ -89,7 +97,7 @@ int main(int argc, char *argv[]){ // no input params
         } else if (message->status == STATUS_INFORM){
             // check results and make changes to local word
             printf("\n[Client %d]: Client %ld submitted letter \'%c\'.", getpid(), message->turn_id, message->submit.letter);
-            for (int i = 0; i < info.chars; i++){
+            for (int i = 0; i < info.chars - 1; i++){
                     if (message->results.letter_found_at[i] != letter_found_at[i]){
                         word[i] = message->submit.letter;
                         letter_found_at[i] = message->results.letter_found_at[i];

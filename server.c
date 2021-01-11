@@ -5,7 +5,7 @@ void handler_submitted(int sig){ // SIGUSR1 is used to inform server about submi
 }
 
 void handler_informed(int sig){ // SIGUSR2 is used to inform server about inform
-    printf("\n[Server %d]: Received Informed Signal from Client %ld.", getpid(), message->turn_id);
+    printf("\n[Server %d]: Received Informed Signal.", getpid());
 }
 
 bool stop_requested = false;
@@ -100,11 +100,11 @@ int main(int argc, char *argv[]){ //input params: input_file
     }
 
     // 5. Create local word from client's perspective
-    char word_public[info.chars + 1];
+    char word_public[info.chars];
     word_public[0] = info.first_char;
-    word_public[info.chars - 1] = info.last_char;
-    word_public[info.chars] = 0;
-    for (int i = 1; i < info.chars - 1; i++){
+    word_public[info.chars - 2] = info.last_char;
+    word_public[info.chars - 1] = 0;
+    for (int i = 1; i < info.chars - 2; i++){
         word_public[i] = UNKNOWN_CHAR;
     }
 
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]){ //input params: input_file
     for (int i = 0; i < MAX_CHARS; i++)
         message->results.letter_found_at[i] = false;
     message->results.letter_found_at[0] = true;
-    message->results.letter_found_at[info.chars - 1] = true;
+    message->results.letter_found_at[info.chars - 2] = true;
     message->results.total_letters_found = 2; 
 
     signal(SIGUSR1, handler_submitted);
@@ -162,10 +162,10 @@ int main(int argc, char *argv[]){ //input params: input_file
                 }
                 printf("\n\n[Server %d]: GAME LOST!", getpid());
                 break;
-            } else if (message->results.total_letters_found == real_length){ // check if won
+            } else if (message->results.total_letters_found == real_length - 1){ // check if won
                 for (int i = 0; i < players; i++){
                     message->status = STATUS_WON;
-                    int kill_status = kill(player_ids[playing_idx], SIGTERM);
+                    int kill_status = kill(player_ids[i], SIGTERM);
                     if (kill_status == -1) perror_exit("Error sending signal to server!");
                 }
                 printf("\n\n[Server %d]: GAME WON!", getpid());
@@ -175,7 +175,7 @@ int main(int argc, char *argv[]){ //input params: input_file
             // inform every player about word status
             message->status = STATUS_INFORM;
             for (int i = 0; i < players; i++){
-                int kill_status = kill(player_ids[playing_idx], SIGUSR2);
+                int kill_status = kill(player_ids[i], SIGUSR2);
                 if (kill_status == -1) perror_exit("Error sending signal to client!");
                 pause(); // wait for answer
             }
@@ -195,15 +195,13 @@ int main(int argc, char *argv[]){ //input params: input_file
 
 
     // 7. Cleanup
-    sleep(2); // give some time to clients to terminate
+    sleep(0.5); // give some time to clients to terminate
 
     int detach_status = shmdt(segment); // detach from shared memory segment
     if (detach_status == -1) perror_exit("Error detaching from shared memory segment!");
 
     int msgctl_status = msgctl(msg_id, IPC_RMID, NULL); //destroy the message queue
     if (msgctl_status == -1) perror_exit("Error destroying the message queue!");
-
-    free(message);
 
     printf("[Client %d]: Terminating!", getpid());
     return 0;
